@@ -15,10 +15,26 @@ export interface KernelPlugin {
 export const AVAILABLE_PLUGINS: KernelPlugin[] = [
   {
     id: "kernelsu",
-    name: "KernelSU",
+    name: "KernelSU (KSU)",
     description: "A kernel-based root solution for Android GKI devices. Safe, fast, and runs in kernel mode.",
     path: "plugins/root/kernelsu",
     recommended: true,
+    category: "root"
+  },
+  {
+    id: "ksu-next",
+    name: "KernelSU Next (KSU-Next)",
+    description: "An enhanced version of KernelSU with extra security patches and anti-detection improvements.",
+    path: "plugins/root/ksu-next",
+    recommended: false,
+    category: "root"
+  },
+  {
+    id: "sukisu-ultra",
+    name: "SukiSu Ultra (SukiSu-Ultra)",
+    description: "Next-generation root module combining KernelSU and advanced kernel hook interfaces.",
+    path: "plugins/root/sukisu-ultra",
+    recommended: false,
     category: "root"
   },
   {

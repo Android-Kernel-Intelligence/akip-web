@@ -234,16 +234,21 @@ export const HomeScreen: React.FC = () => {
           </div>
 
           {/* Action Button */}
-          <button
-            type="submit"
-            disabled={analyzing || !gitUrl.trim()}
-            className="w-full flex items-center justify-center space-x-2 py-3.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed font-bold text-sm text-white shadow-lg shadow-indigo-600/10 hover:shadow-indigo-500/20 transition-all"
-          >
-            <>
-              <span>Analyze Kernel & Configure</span>
-              <ArrowRight className="h-4 w-4" />
-            </>
-          </button>
+          <div className="space-y-3">
+            <button
+              type="submit"
+              disabled={analyzing || !gitUrl.trim()}
+              className="w-full flex items-center justify-center space-x-2 py-3.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed font-bold text-sm text-white shadow-lg shadow-indigo-600/10 hover:shadow-indigo-500/20 transition-all cursor-pointer"
+            >
+              <>
+                <span>Analyze Kernel & Configure</span>
+                <ArrowRight className="h-4 w-4" />
+              </>
+            </button>
+            <p className="text-[10px] text-zinc-500 text-center leading-relaxed">
+              By initiating analysis, you agree to our EU-compliant terms. The system processes the public GitHub repository manifest and verifies file compatibility in-memory on our secure serverless endpoint.
+            </p>
+          </div>
         </form>
       </div>
     </div>

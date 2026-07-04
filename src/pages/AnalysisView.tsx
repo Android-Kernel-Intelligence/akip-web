@@ -47,6 +47,12 @@ export const AnalysisView: React.FC = () => {
     if (nextPlugins.includes(pluginPath)) {
       nextPlugins = nextPlugins.filter((p) => p !== pluginPath);
     } else {
+      // Ensure mutual exclusivity for "root" category plugins (KSU, KSU-Next, SukiSu-Ultra)
+      const clickedPlugin = AVAILABLE_PLUGINS.find(p => p.path === pluginPath);
+      if (clickedPlugin && clickedPlugin.category === "root") {
+        const otherRootPaths = AVAILABLE_PLUGINS.filter(p => p.category === "root" && p.path !== pluginPath).map(p => p.path);
+        nextPlugins = nextPlugins.filter(p => !otherRootPaths.includes(p));
+      }
       nextPlugins.push(pluginPath);
     }
     setSelectedPlugins(nextPlugins);
