@@ -10,8 +10,7 @@ export const ReproducibilityView: React.FC = () => {
 
   useEffect(() => {
     if (id) {
-      const data = getBuildManifest(id);
-      setManifest(data);
+      getBuildManifest(id).then(setManifest).catch(() => setManifest(null));
     }
   }, [id]);
 
