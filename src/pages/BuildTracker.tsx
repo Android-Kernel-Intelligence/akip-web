@@ -12,7 +12,6 @@ export const BuildTracker: React.FC = () => {
   const [buildData, setBuildData] = useState<StatusResponse | null>(null);
   const [copied, setCopied] = useState(false);
   const [logLines, setLogLines] = useState<string[]>([]);
-  const [lastLogCount, setLastLogCount] = useState(0);
   
   const consoleEndRef = useRef<HTMLDivElement>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -31,7 +30,6 @@ export const BuildTracker: React.FC = () => {
           setLogLines(prev => {
             const newLines = data.logs!.slice(prev.length);
             if (newLines.length > 0) {
-              setLastLogCount(data.logs!.length);
               return [...prev, ...newLines];
             }
             return prev;
