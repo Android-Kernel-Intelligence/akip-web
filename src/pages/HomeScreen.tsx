@@ -58,6 +58,8 @@ export const HomeScreen: React.FC = () => {
       navigate(`/analyze/${res.report.cache_key}`, {
         state: {
           report: res.report,
+          latestCommit: res.latest_commit,
+          previousBuilds: res.previous_builds,
           gitUrl,
           arch
         }

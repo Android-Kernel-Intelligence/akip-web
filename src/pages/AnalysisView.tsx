@@ -5,7 +5,7 @@ import { PluginCard } from "../components/PluginCard";
 import { AVAILABLE_PLUGINS } from "../lib/plugins";
 import { analyzeKernel, triggerBuild } from "../lib/api";
 import type { AnalysisReport } from "../lib/types";
-import { GitFork, AlertTriangle, ArrowRight, ShieldAlert, CheckCircle2, Sliders, Play } from "lucide-react";
+import { GitFork, AlertTriangle, ArrowRight, ShieldAlert, CheckCircle2, Sliders, Play, Cpu } from "lucide-react";
 
 export const AnalysisView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +21,13 @@ export const AnalysisView: React.FC = () => {
     location.state?.report?.plugin_paths || ["plugins/root/kernelsu", "plugins/security/susfs"]
   );
   
+  const [latestCommit, setLatestCommit] = useState<{ hash: string; message: string } | null>(
+    location.state?.latestCommit || null
+  );
+  const [previousBuilds, setPreviousBuilds] = useState<any[]>(
+    location.state?.previousBuilds || []
+  );
+
   const [stopOnFailure, setStopOnFailure] = useState(true);
   const [loading, setLoading] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
@@ -33,6 +40,8 @@ export const AnalysisView: React.FC = () => {
         try {
           const res = await analyzeKernel(gitUrl, arch, selectedPlugins);
           setReport(res.report);
+          if (res.latest_commit) setLatestCommit(res.latest_commit);
+          if (res.previous_builds) setPreviousBuilds(res.previous_builds);
         } catch (err) {
           setError("Failed to load compatibility report.");
         }
@@ -61,6 +70,8 @@ export const AnalysisView: React.FC = () => {
     try {
       const res = await analyzeKernel(gitUrl, arch, nextPlugins);
       setReport(res.report);
+      if (res.latest_commit) setLatestCommit(res.latest_commit);
+      if (res.previous_builds) setPreviousBuilds(res.previous_builds);
     } catch (err) {
       console.error("Re-analysis failed", err);
     } finally {
@@ -121,7 +132,7 @@ export const AnalysisView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10 animate-fade-in-up">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 animate-fade-in-up">
       {/* Page Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-zinc-800/80 pb-6">
         <div>
@@ -140,6 +151,21 @@ export const AnalysisView: React.FC = () => {
         </div>
       </div>
 
+      {latestCommit && (
+        <div className="glass p-4 rounded-xl border border-zinc-850 bg-zinc-950/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Latest Commit Reference</span>
+            <p className="text-xs text-zinc-300 font-semibold truncate max-w-xl">
+              "{latestCommit.message}"
+            </p>
+          </div>
+          <div className="flex items-center space-x-2 text-xs font-mono bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1">
+            <span className="text-zinc-500">SHA:</span>
+            <span className="text-cyan-400 font-bold">{latestCommit.hash.slice(0, 7)}</span>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Side: Score card & warnings */}
         <div className="space-y-6 lg:col-span-1">
@@ -154,6 +180,36 @@ export const AnalysisView: React.FC = () => {
             )}
             <ConfidenceGauge score={summary.compatibility_score} />
           </div>
+
+          {/* Device Info */}
+          {report.device_info && (
+            <div className="glass p-5 rounded-2xl space-y-4">
+              <h3 className="text-xs font-bold uppercase text-zinc-400 tracking-wider flex items-center gap-1.5">
+                <Cpu className="h-4 w-4 text-indigo-400" />
+                <span>Device Compatibility</span>
+              </h3>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between border-b border-zinc-850 pb-1.5">
+                  <span className="text-zinc-500 font-medium">Manufacturer</span>
+                  <span className="font-bold text-zinc-200">{report.device_info.manufacturer}</span>
+                </div>
+                <div className="flex justify-between border-b border-zinc-850 pb-1.5">
+                  <span className="text-zinc-500 font-medium">Device Model</span>
+                  <span className="font-bold text-zinc-200">{report.device_info.model}</span>
+                </div>
+                <div className="flex justify-between border-b border-zinc-850 pb-1.5">
+                  <span className="text-zinc-500 font-medium">Codename</span>
+                  <span className="font-mono font-bold text-cyan-400">{report.device_info.codename}</span>
+                </div>
+                <div className="flex justify-between pb-0.5">
+                  <span className="text-zinc-500 font-medium">Supported Devices</span>
+                  <span className="font-mono font-bold text-indigo-300 text-right max-w-[150px] truncate" title={report.device_info.supported_devices}>
+                    {report.device_info.supported_devices}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Rules Matcher Stats */}
           <div className="glass p-5 rounded-2xl space-y-4">
@@ -281,6 +337,76 @@ export const AnalysisView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Previous Builds Section */}
+      {previousBuilds && previousBuilds.length > 0 && (
+        <div className="glass p-6 sm:p-8 rounded-2xl space-y-6">
+          <div>
+            <h2 className="text-lg font-bold text-zinc-100">Suggested / Previous Compilations</h2>
+            <p className="text-xs text-zinc-400 mt-1">
+              Select and download pre-built kernels for this repository immediately, or reference their parameters.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-zinc-800 text-zinc-500 uppercase tracking-wider font-semibold">
+                  <th className="py-3 px-4">Release Name</th>
+                  <th className="py-3 px-4">Prefs Used</th>
+                  <th className="py-3 px-4">Device</th>
+                  <th className="py-3 px-4">Commit</th>
+                  <th className="py-3 px-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-900/60">
+                {previousBuilds.map((b: any) => {
+                  const rootPlugin = b.plugin_paths.includes("plugins/root/kernelsu") ? "KSU" :
+                                     b.plugin_paths.includes("plugins/root/ksu-next") ? "KSU-Next" :
+                                     b.plugin_paths.includes("plugins/root/sukisu-ultra") ? "SukiSu-Ultra" : "NoRoot";
+                  const hasSusfs = b.plugin_paths.includes("plugins/security/susfs");
+                  
+                  return (
+                    <tr key={b.build_id} className="hover:bg-zinc-950/40 transition-colors">
+                      <td className="py-4 px-4 font-bold text-zinc-200">{b.release_name || `AKIP Build - ${b.build_id.slice(0,8)}`}</td>
+                      <td className="py-4 px-4 space-x-1.5">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-950/50 border border-indigo-800/60 text-indigo-300">
+                          {rootPlugin}
+                        </span>
+                        {hasSusfs && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/50 border border-emerald-800/60 text-emerald-300">
+                            SUSFS
+                          </span>
+                        )}
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-900 border border-zinc-800 text-zinc-400">
+                          {b.arch}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-zinc-400 font-medium">
+                        {b.device_model} ({b.device_codename})
+                      </td>
+                      <td className="py-4 px-4 font-mono text-zinc-500">{b.commit_short_hash}</td>
+                      <td className="py-4 px-4 text-right">
+                        {b.download_url ? (
+                          <a
+                            href={b.download_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition-colors"
+                          >
+                            <span>Download ZIP</span>
+                          </a>
+                        ) : (
+                          <span className="text-zinc-500 italic">No File</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

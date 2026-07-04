@@ -38,12 +38,23 @@ export interface AnalysisReport {
   arch: string;
   plugin_paths: string[];
   summary: AnalysisSummary;
+  device_info?: {
+    codename: string;
+    manufacturer: string;
+    model: string;
+    supported_devices: string;
+  };
   created_at: string;
 }
 
 export interface AnalyzeResponse {
   source: "cache" | "fresh" | "mock";
   report: AnalysisReport;
+  latest_commit?: {
+    hash: string;
+    message: string;
+  };
+  previous_builds?: any[];
 }
 
 export interface BuildResponse {
