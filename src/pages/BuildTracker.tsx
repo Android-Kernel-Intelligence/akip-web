@@ -11,10 +11,13 @@ export const BuildTracker: React.FC = () => {
   
   const [buildData, setBuildData] = useState<StatusResponse | null>(null);
   const [copied, setCopied] = useState(false);
+  const [logLines, setLogLines] = useState<string[]>([]);
+  const [lastLogCount, setLastLogCount] = useState(0);
   
   const consoleEndRef = useRef<HTMLDivElement>(null);
+  const logContainerRef = useRef<HTMLDivElement>(null);
 
-  // Poll status endpoint
+  // Poll status endpoint every 2s for realtime log streaming
   useEffect(() => {
     if (!id) return;
 
@@ -23,7 +26,19 @@ export const BuildTracker: React.FC = () => {
         const data = await getBuildStatus(id);
         setBuildData(data);
         
-        // Stop polling if build completed/failed
+        // Append only new log lines (don't re-render everything)
+        if (data.logs && data.logs.length > 0) {
+          setLogLines(prev => {
+            const newLines = data.logs!.slice(prev.length);
+            if (newLines.length > 0) {
+              setLastLogCount(data.logs!.length);
+              return [...prev, ...newLines];
+            }
+            return prev;
+          });
+        }
+        
+        // Stop polling on terminal states
         if (data.status === "SUCCESS" || data.status === "FAILED" || data.status === "CANCELLED") {
           clearInterval(pollTimer);
         }
@@ -32,18 +47,18 @@ export const BuildTracker: React.FC = () => {
       }
     };
 
-    fetchStatus(); // initial check
-    const pollTimer = setInterval(fetchStatus, 3000);
+    fetchStatus();
+    const pollTimer = setInterval(fetchStatus, 2000); // 2s for near-realtime
 
     return () => clearInterval(pollTimer);
   }, [id]);
 
-  // Scroll to bottom of terminal when logs update
+  // Auto-scroll to bottom when new log lines arrive
   useEffect(() => {
     if (consoleEndRef.current) {
       consoleEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [buildData?.logs]);
+  }, [logLines.length]);
 
   const handleCopyId = async () => {
     if (!id) return;
@@ -199,30 +214,38 @@ export const BuildTracker: React.FC = () => {
                 </div>
               </div>
               
-              <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-500 animate-pulse">
-                LIVE LOGS
+              <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-emerald-500 animate-pulse">
+                {logLines.length > 0 ? `${logLines.length} LINES` : "LIVE"}
               </span>
             </div>
 
-            {/* Terminal Console log items */}
-            <div className="flex-1 p-5 overflow-y-auto font-mono text-xs text-zinc-300 space-y-2 bg-zinc-950/40 custom-scrollbar max-h-[360px]">
-              {buildData.logs && buildData.logs.length > 0 ? (
-                buildData.logs.map((logLine, idx) => (
+            {/* Terminal Console — append-only realtime log stream */}
+            <div ref={logContainerRef} className="flex-1 p-5 overflow-y-auto font-mono text-xs text-zinc-300 space-y-1.5 bg-zinc-950/40 custom-scrollbar max-h-[360px]">
+              {logLines.length > 0 ? (
+                logLines.map((logLine, idx) => (
                   <div
                     key={idx}
-                    className={`leading-relaxed ${
+                    className={`leading-relaxed flex items-start gap-2 ${
                       logLine.includes("SUCCESS")
                         ? "text-emerald-400 font-semibold"
-                        : logLine.includes("ERROR") || logLine.includes("failed")
+                        : logLine.includes("ERROR") || logLine.includes("failed") || logLine.includes("FAILED")
                         ? "text-rose-400 font-semibold"
+                        : logLine.includes("WARNING")
+                        ? "text-amber-400"
+                        : logLine.startsWith("[CC]")
+                        ? "text-zinc-500 text-[10px]"
                         : "text-zinc-300"
                     }`}
                   >
-                    {logLine}
+                    <span className="text-zinc-700 select-none shrink-0 tabular-nums">{String(idx + 1).padStart(3, "0")}</span>
+                    <span>{logLine}</span>
                   </div>
                 ))
               ) : (
-                <div className="text-zinc-500 italic">Waiting for initial log outputs...</div>
+                <div className="text-zinc-500 italic flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                  Waiting for runner to start logging...
+                </div>
               )}
               <div ref={consoleEndRef} />
             </div>
