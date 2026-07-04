@@ -8,11 +8,13 @@ export const HomeScreen: React.FC = () => {
   const [arch, setArch] = useState("arm64");
   const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
   const navigate = useNavigate();
 
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setLogs([]);
 
     const parsed = parseGitHubUrl(gitUrl);
     if (!parsed) {
@@ -21,11 +23,38 @@ export const HomeScreen: React.FC = () => {
     }
 
     setAnalyzing(true);
+
+    const printLogs = async (steps: string[]) => {
+      for (const step of steps) {
+        setLogs((prev) => [...prev, step]);
+        await new Promise((resolve) => setTimeout(resolve, 450));
+      }
+    };
+
     try {
-      // Initiate static analysis via API client
-      const res = await analyzeKernel("6.1.25", arch, ["plugins/root/kernelsu", "plugins/security/susfs"]);
+      // Start the API call in parallel
+      const apiPromise = analyzeKernel(gitUrl, arch, ["plugins/root/kernelsu", "plugins/security/susfs"]);
+
+      // Print initial log steps
+      setLogs((prev) => [...prev, `[INFO] Parsing repository URL: github.com/${parsed.owner}/${parsed.repo}`]);
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      setLogs((prev) => [...prev, "[INFO] Connecting to GitHub REST API..."]);
+      await new Promise((resolve) => setTimeout(resolve, 450));
       
-      // Navigate to analysis page with generated report parameters or state
+      const res = await apiPromise;
+      
+      // Print the rest of the actual backend logs dynamically!
+      const remainingLogs = res.logs ? res.logs.slice(2) : [
+        "[INFO] Makefile retrieved successfully.",
+        `[INFO] Parsed Kernel Version: ${res.report.kernel_version}`,
+        `[SUCCESS] Analysis completed. Final confidence score: ${Math.round(res.report.summary.compatibility_score * 100)}%`
+      ];
+      
+      await printLogs(remainingLogs);
+
+      // Small pause to show success message
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
       navigate(`/analyze/${res.report.cache_key}`, {
         state: {
           report: res.report,
@@ -33,11 +62,74 @@ export const HomeScreen: React.FC = () => {
           arch
         }
       });
-    } catch (err) {
-      setError("Analysis engine failed to connect. Try again.");
-      setAnalyzing(false);
+    } catch (err: any) {
+      const errorLogs = err.logs ? err.logs.slice(2) : [
+        `[ERROR] ${err.message || "Analysis engine connection failed."}`
+      ];
+      await printLogs(errorLogs);
+      setError(err.message || "Analysis failed. Please check repository URL or credentials.");
     }
   };
+
+  if (analyzing) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] relative px-4">
+        {/* Background glow effects */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-cyan-500/5 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="w-full max-w-2xl z-10 space-y-6">
+          <div className="glass p-6 sm:p-8 rounded-2xl border border-zinc-800 bg-zinc-950/90 shadow-2xl space-y-6 font-mono text-xs">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center space-x-2">
+                <span className="h-3 w-3 rounded-full bg-rose-500/80" />
+                <span className="h-3 w-3 rounded-full bg-amber-500/80" />
+                <span className="h-3 w-3 rounded-full bg-emerald-500/80" />
+              </div>
+              <span className="text-zinc-500 text-[10px]">AKIP-VERIFY-DAEMON</span>
+            </div>
+
+            <div className="space-y-2.5 min-h-[160px] overflow-y-auto max-h-[250px] scrollbar-thin text-zinc-300">
+              {logs.map((log, index) => {
+                const isError = log.includes("ERROR");
+                const isSuccess = log.includes("SUCCESS");
+                const colorClass = isError ? "text-rose-400" : isSuccess ? "text-emerald-400" : "text-zinc-300";
+                return (
+                  <div key={index} className={`flex items-start gap-2 ${colorClass}`}>
+                    <span className="text-zinc-600 select-none">$&gt;</span>
+                    <span>{log}</span>
+                  </div>
+                );
+              })}
+              {logs.length < 7 && !error && (
+                <div className="flex items-center space-x-2 text-indigo-400">
+                  <span className="text-zinc-600 select-none">$&gt;</span>
+                  <span className="h-3 w-1.5 bg-indigo-400 inline-block animate-pulse" />
+                  <span>Processing...</span>
+                </div>
+              )}
+            </div>
+
+            {error && (
+              <div className="pt-4 border-t border-zinc-800 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAnalyzing(false);
+                    setError(null);
+                    setLogs([]);
+                  }}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 rounded-lg text-white font-bold text-xs"
+                >
+                  Dismiss & Try Again
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] relative px-4">
@@ -147,20 +239,10 @@ export const HomeScreen: React.FC = () => {
             disabled={analyzing || !gitUrl.trim()}
             className="w-full flex items-center justify-center space-x-2 py-3.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed font-bold text-sm text-white shadow-lg shadow-indigo-600/10 hover:shadow-indigo-500/20 transition-all"
           >
-            {analyzing ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                <span>Analyzing Source Tree...</span>
-              </>
-            ) : (
-              <>
-                <span>Analyze Kernel & Configure</span>
-                <ArrowRight className="h-4 w-4" />
-              </>
-            )}
+            <>
+              <span>Analyze Kernel & Configure</span>
+              <ArrowRight className="h-4 w-4" />
+            </>
           </button>
         </form>
       </div>

@@ -28,10 +28,10 @@ export const AnalysisView: React.FC = () => {
 
   // Fetch report if loaded directly (e.g. via deep link or page refresh)
   useEffect(() => {
-    if (!report && id) {
+    if (!report && !error && id) {
       const fetchReport = async () => {
         try {
-          const res = await analyzeKernel("6.1.25", arch, selectedPlugins);
+          const res = await analyzeKernel(gitUrl, arch, selectedPlugins);
           setReport(res.report);
         } catch (err) {
           setError("Failed to load compatibility report.");
@@ -39,7 +39,7 @@ export const AnalysisView: React.FC = () => {
       };
       fetchReport();
     }
-  }, [id, report]);
+  }, [id, report, error]);
 
   // Re-run compatibility calculations when plugins selection changes
   const handlePluginToggle = async (pluginPath: string) => {
@@ -53,7 +53,7 @@ export const AnalysisView: React.FC = () => {
 
     setReanalyzing(true);
     try {
-      const res = await analyzeKernel("6.1.25", arch, nextPlugins);
+      const res = await analyzeKernel(gitUrl, arch, nextPlugins);
       setReport(res.report);
     } catch (err) {
       console.error("Re-analysis failed", err);
@@ -63,10 +63,11 @@ export const AnalysisView: React.FC = () => {
   };
 
   const handleStartBuild = async () => {
+    if (!report) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await triggerBuild("6.1.25", arch, selectedPlugins);
+      const res = await triggerBuild(gitUrl, report.kernel_version, arch, selectedPlugins);
       // Navigate to tracking page
       navigate(`/build/${res.build_id}`);
     } catch (err) {
@@ -104,7 +105,14 @@ export const AnalysisView: React.FC = () => {
     );
   }
 
-  const { summary } = report;
+  const summary = report.summary || {
+    total_rules: 0,
+    applicable_rules: 0,
+    estimated_patch_sites: 0,
+    compatibility_score: 0,
+    warnings: [],
+    plugins_loaded: []
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10 animate-fade-in-up">
@@ -122,7 +130,7 @@ export const AnalysisView: React.FC = () => {
           <span className="text-indigo-400 font-bold">{arch.toUpperCase()}</span>
           <span className="text-zinc-700">|</span>
           <span className="text-zinc-500">BASE:</span>
-          <span className="text-cyan-400 font-bold">Linux 6.1.25</span>
+          <span className="text-cyan-400 font-bold">Linux {report.kernel_version}</span>
         </div>
       </div>
 

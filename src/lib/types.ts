@@ -33,6 +33,7 @@ export interface AnalysisSummary {
 
 export interface AnalysisReport {
   cache_key: string;
+  git_url?: string;
   kernel_version: string;
   arch: string;
   plugin_paths: string[];
@@ -41,7 +42,7 @@ export interface AnalysisReport {
 }
 
 export interface AnalyzeResponse {
-  source: "cache" | "fresh";
+  source: "cache" | "fresh" | "mock";
   report: AnalysisReport;
 }
 

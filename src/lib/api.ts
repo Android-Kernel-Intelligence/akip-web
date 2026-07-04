@@ -40,32 +40,34 @@ export function parseGitHubUrl(url: string): { owner: string; repo: string } | n
  * 1. Analyze Kernel compatibility
  */
 export async function analyzeKernel(
-  kernelVersion: string,
+  gitUrl: string,
   arch: string,
   pluginPaths: string[]
-): Promise<AnalyzeResponse> {
+): Promise<AnalyzeResponse & { logs?: string[] }> {
   const isHealthy = await checkApiHealth();
 
   if (isHealthy) {
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kernel_version: kernelVersion, arch, plugin_paths: pluginPaths })
-      });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (err) {
-      console.warn("API Call failed, falling back to mock mode", err);
+    const res = await fetch(`${getApiBaseUrl()}/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ git_url: gitUrl, arch, plugin_paths: pluginPaths })
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      const err = new Error(errorData.details || errorData.error || `Server returned status ${res.status}`);
+      (err as any).logs = errorData.logs;
+      throw err;
     }
+
+    return await res.json();
   }
 
   // Fallback / Mock Mode
   await new Promise((resolve) => setTimeout(resolve, 800)); // Simulate network lag
   
   // Calculate a deterministic confidence score based on the plugins
-  let baseScore = 0.95;
+  let baseScore = 0.87;
   const warnings: string[] = [];
 
   if (pluginPaths.includes("plugins/security/susfs")) {
@@ -84,10 +86,11 @@ export async function analyzeKernel(
   const score = Math.max(0.5, Math.min(1.0, baseScore));
 
   return {
-    source: "cache",
+    source: "mock",
     report: {
-      cache_key: `mock-cache-${btoa(kernelVersion + arch + pluginPaths.join("-")).substring(0, 16)}`,
-      kernel_version: kernelVersion,
+      cache_key: `mock-cache-${btoa(gitUrl + arch + pluginPaths.join("-")).substring(0, 16)}`,
+      git_url: gitUrl,
+      kernel_version: "6.1.25",
       arch,
       plugin_paths: pluginPaths,
       created_at: new Date().toISOString(),
@@ -107,6 +110,7 @@ export async function analyzeKernel(
  * 2. Trigger Kernel Build
  */
 export async function triggerBuild(
+  gitUrl: string,
   kernelVersion: string,
   arch: string,
   pluginPaths: string[]
@@ -118,7 +122,7 @@ export async function triggerBuild(
       const res = await fetch(`${getApiBaseUrl()}/build`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kernel_version: kernelVersion, arch, plugin_paths: pluginPaths })
+        body: JSON.stringify({ git_url: gitUrl, kernel_version: kernelVersion, arch, plugin_paths: pluginPaths })
       });
       if (res.ok) {
         return await res.json();
